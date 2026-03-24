@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls F:/web/depozit/*.png F:/web/depozit/*.jpg F:/web/depozit/*.svg)"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дашборд</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1>ДАШБОРД РЕЗУЛЬТАТИВНОСТИ</h1>
+        </div>
+        <div class="header-info">
+            <span id="current-date"></span>
+            <span class="timer">Обновление: <span id="countdown">60</span>с</span>
+            <button class="settings-btn" onclick="openSettings()">Настройки</button>
+        </div>
+    </header>
+
+    <main>
+        <div class="column">
+            <h2>СБОРЩИКИ</h2>
+            <table id="table-collectors">
+                <thead>
+                    <tr>
+                        <th class="rank">#</th>
+                        <th class="name-col">Имя</th>
+                        <th>Заявки (П/Ф)</th>
+                        <th>Ошибки</th>
+                        <th class="bar-col">Вып. (Заявки)</th>
+                        <th>Кол-во (П/Ф)</th>
+                        <th class="bar-col">Вып. (Кол-во)</th>
+                        <th>Наим.</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="column">
+            <h2>ВОДИТЕЛИ</h2>
+            <table id="table-drivers">
+                <thead>
+                    <tr>
+                        <th class="rank">#</th>
+                        <th class="name-col">Имя</th>
+                        <th>Заявки (П/Ф)</th>
+                        <th>Ошибки</th>
+                        <th class="bar-col">Вып. (Заявки)</th>
+                        <th>Кол-во (П/Ф)</th>
+                        <th class="bar-col">Вып. (Кол-во)</th>
+                        <th>Наим.</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+            <h3>Настройки</h3>
+            <label for="refresh-input">Интервал обновления (секунды)</label>
+            <input type="number" id="refresh-input" min="10" max="600" value="60">
+            <div class="form-group">
+                <label>ID Google таблицы</label>
+                <input type="text" id="sheet-input">
+            </div>
+            <div class="form-group checkbox-group">
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" id="show-products-input" style="width: auto; margin: 0;">
+                    Показывать колонку "Наименования"
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeSettings()">Отмена</button>
+                <button class="btn-save" onclick="saveSettings()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
