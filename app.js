@@ -2,13 +2,26 @@
 var DEFAULTS = {
     spreadsheetId: '1R20qaopx4sKJtw_Fg5zPKQzrav2PUntshn5kHF4rQiY',
     sheetName: 'dashport',
+    settingsSheetName: 'Настройки',
     refreshInterval: 60
+};
+
+var TYPE_DEFAULTS = {
+    collector: {
+        planOrders: 160,
+        planQty: 26000
+    },
+    driver: {
+        planOrders: 250,
+        planQty: 100000
+    }
 };
 
 function getConfig() {
     return {
         spreadsheetId: localStorage.getItem('dash_sheetId') || DEFAULTS.spreadsheetId,
         sheetName: localStorage.getItem('dash_sheetName') || DEFAULTS.sheetName,
+        settingsSheetName: localStorage.getItem('dash_settingsSheetName') || DEFAULTS.settingsSheetName,
         refreshInterval: parseInt(localStorage.getItem('dash_refresh')) || DEFAULTS.refreshInterval,
         showProductsColumn: localStorage.getItem('dash_showProducts') !== 'false' // default to true
     };
@@ -16,13 +29,18 @@ function getConfig() {
 
 var countdownValue = getConfig().refreshInterval;
 var countdownTimer = null;
+var lastDashboardPeople = [];
+var lastSettingsKeys = {};
 
 // Settings modal
 function openSettings() {
     var cfg = getConfig();
     document.getElementById('refresh-input').value = cfg.refreshInterval;
     document.getElementById('sheet-input').value = cfg.spreadsheetId;
+    document.getElementById('dashboard-sheet-input').value = cfg.sheetName;
+    document.getElementById('settings-sheet-input').value = cfg.settingsSheetName;
     document.getElementById('show-products-input').checked = cfg.showProductsColumn;
+    updateMissingSettingsList();
     document.getElementById('settings-modal').classList.add('open');
 }
 
@@ -30,13 +48,26 @@ function closeSettings() {
     document.getElementById('settings-modal').classList.remove('open');
 }
 
+function switchSettingsTab(tabName) {
+    document.querySelectorAll('.settings-tab').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.settings-panel').forEach(function(panel) {
+        panel.classList.toggle('active', panel.dataset.panel === tabName);
+    });
+}
+
 function saveSettings() {
     var refresh = parseInt(document.getElementById('refresh-input').value) || 60;
     var sheetId = document.getElementById('sheet-input').value.trim();
+    var dashboardSheet = document.getElementById('dashboard-sheet-input').value.trim() || DEFAULTS.sheetName;
+    var settingsSheet = document.getElementById('settings-sheet-input').value.trim() || DEFAULTS.settingsSheetName;
     var showProducts = document.getElementById('show-products-input').checked;
 
     localStorage.setItem('dash_refresh', Math.max(10, refresh));
     if (sheetId) localStorage.setItem('dash_sheetId', sheetId);
+    localStorage.setItem('dash_sheetName', dashboardSheet);
+    localStorage.setItem('dash_settingsSheetName', settingsSheet);
     localStorage.setItem('dash_showProducts', showProducts);
 
     closeSettings();
@@ -50,76 +81,190 @@ function saveSettings() {
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
+window.switchSettingsTab = switchSettingsTab;
 
-function getSheetURL() {
+function getSheetURL(sheetName, query) {
     var cfg = getConfig();
-    var query = encodeURIComponent('SELECT A,B,C,D,E,F,G,H,I,J,K WHERE A IS NOT NULL');
-    return 'https://docs.google.com/spreadsheets/d/' + cfg.spreadsheetId + '/gviz/tq?tqx=out:json&sheet=' + cfg.sheetName + '&tq=' + query;
+    return 'https://docs.google.com/spreadsheets/d/' + cfg.spreadsheetId + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName) + '&tq=' + encodeURIComponent(query);
+}
+
+function parseGvizResponse(text) {
+    var jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?/);
+    if (!jsonStr || !jsonStr[1]) {
+        throw new Error('Не удалось разобрать ответ Google Sheets');
+    }
+
+    var data = JSON.parse(jsonStr[1]);
+    if (data.status === 'error') {
+        var errorMsg = (data.errors && data.errors[0]) ? data.errors[0].detailed_message : 'Ошибка API';
+        throw new Error(errorMsg);
+    }
+
+    return (data.table && data.table.rows) || [];
+}
+
+function fetchSheetRows(sheetName, query) {
+    return fetch(getSheetURL(sheetName, query))
+        .then(function(response) { return response.text(); })
+        .then(parseGvizResponse);
+}
+
+function normalizeText(value) {
+    return (value === null || value === undefined) ? '' : value.toString().trim();
+}
+
+function normalizeKey(name, type) {
+    return normalizeText(name).toLowerCase() + '|' + normalizeText(type).toLowerCase();
+}
+
+function isYes(value) {
+    var text = normalizeText(value).toLowerCase();
+    return text === 'да' || text === 'yes' || text === 'true' || text === '1';
+}
+
+function isNo(value) {
+    var text = normalizeText(value).toLowerCase();
+    return text === 'нет' || text === 'no' || text === 'false' || text === '0';
+}
+
+function getPersonKind(type) {
+    var typeLower = normalizeText(type).toLowerCase();
+    if (typeLower.indexOf('сборщик') !== -1 || typeLower.indexOf('сборка') !== -1 || typeLower.indexOf('collector') !== -1) {
+        return 'collector';
+    }
+    return 'driver';
+}
+
+function getCell(row, index) {
+    return row.c && row.c[index] && row.c[index].v !== null ? row.c[index].v : '';
+}
+
+function parseSettingsRows(rows) {
+    var map = {};
+
+    rows.forEach(function(row) {
+        var name = normalizeText(getCell(row, 0));
+        var type = normalizeText(getCell(row, 1));
+        if (!name || !type) return;
+
+        var planOrders = parseFloat(getCell(row, 2));
+        var planQty = parseFloat(getCell(row, 3));
+        var assemblyErrorsValue = getCell(row, 7);
+        var assemblyErrors = assemblyErrorsValue === '' ? null : parseFloat(assemblyErrorsValue);
+
+        map[normalizeKey(name, type)] = {
+            planOrders: isNaN(planOrders) ? null : planOrders,
+            planQty: isNaN(planQty) ? null : planQty,
+            showDashboard: !isNo(getCell(row, 4)),
+            hidePlan: isYes(getCell(row, 5)),
+            showProducts: isYes(getCell(row, 6)),
+            assemblyErrors: isNaN(assemblyErrors) ? null : assemblyErrors
+        };
+    });
+
+    return map;
+}
+
+function buildPerson(row, settingsMap, hasSettingsSheet) {
+    var name = normalizeText(getCell(row, 0));
+    var type = normalizeText(getCell(row, 1));
+    if (!name || !type) return null;
+
+    var kind = getPersonKind(type);
+    var defaults = TYPE_DEFAULTS[kind];
+    var key = normalizeKey(name, type);
+    var settings = settingsMap[key] || null;
+
+    var inlinePlanOrders = parseFloat(getCell(row, 2));
+    var factOrders = parseFloat(getCell(row, 3));
+    var inlinePlanQty = parseFloat(getCell(row, 4));
+    var factQty = parseFloat(getCell(row, 5));
+    var inlineErrors = parseFloat(getCell(row, 10));
+
+    var showDashboard = hasSettingsSheet
+        ? (!settings || settings.showDashboard)
+        : !isNo(getCell(row, 7));
+
+    if (!showDashboard) return null;
+
+    return {
+        name: name,
+        type: type,
+        key: key,
+        kind: kind,
+        hasManualSettings: !!settings,
+        planOrders: settings && settings.planOrders !== null ? settings.planOrders : (hasSettingsSheet ? defaults.planOrders : (inlinePlanOrders || 0)),
+        factOrders: factOrders || 0,
+        planQty: settings && settings.planQty !== null ? settings.planQty : (hasSettingsSheet ? defaults.planQty : (inlinePlanQty || 0)),
+        factQty: factQty || 0,
+        productCount: getCell(row, 6),
+        assemblyErrors: settings && settings.assemblyErrors !== null ? settings.assemblyErrors : (hasSettingsSheet ? null : (isNaN(inlineErrors) ? null : inlineErrors)),
+        hidePlan: hasSettingsSheet ? !!(settings && settings.hidePlan) : isYes(getCell(row, 8)),
+        showProducts: hasSettingsSheet ? !!(settings && settings.showProducts) : isYes(getCell(row, 9))
+    };
+}
+
+function updateMissingSettingsList() {
+    var el = document.getElementById('missing-settings-list');
+    if (!el) return;
+
+    var missing = lastDashboardPeople.filter(function(person) {
+        return person.name && person.type && !lastSettingsKeys[person.key];
+    });
+
+    if (missing.length === 0) {
+        el.innerHTML = '<div class="missing-empty">Нет новых сотрудников.</div>';
+        return;
+    }
+
+    el.innerHTML = missing.map(function(person) {
+        return '<div class="missing-item">' +
+            '<span>' + escapeHTML(person.name) + '</span>' +
+            '<span>' + escapeHTML(person.type) + '</span>' +
+        '</div>';
+    }).join('');
 }
 
 function fetchData() {
     var headerEl = document.querySelector('header');
     if (headerEl) headerEl.classList.add('updating');
+    var cfg = getConfig();
     
-    fetch(getSheetURL())
-        .then(function(response) { return response.text(); })
-        .then(function(text) {
-            var jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?/);
-            if (!jsonStr || !jsonStr[1]) {
-                throw new Error('Не удалось разобрать ответ Google Sheets');
-            }
-
-            var data = JSON.parse(jsonStr[1]);
-            if (data.status === 'error') {
-                var errorMsg = (data.errors && data.errors[0]) ? data.errors[0].detailed_message : 'Ошибка API';
-                throw new Error(errorMsg);
-            }
-
-            var rows = (data.table && data.table.rows) || [];
+    Promise.all([
+        fetchSheetRows(cfg.sheetName, 'SELECT A,B,C,D,E,F,G,H,I,J,K WHERE A IS NOT NULL'),
+        fetchSheetRows(cfg.settingsSheetName, 'SELECT A,B,C,D,E,F,G,H WHERE A IS NOT NULL')
+            .then(function(rows) {
+                return { rows: rows, available: true };
+            })
+            .catch(function(err) {
+                console.warn('Settings sheet unavailable, using inline dashboard settings:', err);
+                return { rows: [], available: false };
+            })
+    ])
+        .then(function(results) {
+            var rows = results[0];
+            var settingsState = results[1];
+            var settingsMap = parseSettingsRows(settingsState.rows);
             var collectors = [];
             var drivers = [];
+            var allPeople = [];
 
             rows.forEach(function(row) {
-                var cells = row.c;
-                if (!cells || !cells[0]) return;
+                var person = buildPerson(row, settingsMap, settingsState.available);
+                if (!person) return;
 
-                var name = (cells[0] && cells[0].v !== null) ? cells[0].v : '';
-                var type = (cells[1] && cells[1].v !== null) ? cells[1].v.toString().trim() : '';
-                var typeLower = type.toLowerCase();
-                var planOrders = (cells[2] && cells[2].v !== null) ? parseFloat(cells[2].v) : 0;
-                var factOrders = (cells[3] && cells[3].v !== null) ? parseFloat(cells[3].v) : 0;
-                var planQty = (cells[4] && cells[4].v !== null) ? parseFloat(cells[4].v) : 0;
-                var factQty = (cells[5] && cells[5].v !== null) ? parseFloat(cells[5].v) : 0;
-                var productCount = (cells[6] && cells[6].v !== null) ? cells[6].v : '';
-                var status = (cells[7] && cells[7].v !== null) ? cells[7].v.toString().toLowerCase().trim() : '';
-                var hidePlan = (cells[8] && cells[8].v !== null) ? cells[8].v.toString().toLowerCase().trim() : '';
-                var showProductsSetting = (cells[9] && cells[9].v !== null) ? cells[9].v.toString().toLowerCase().trim() : '';
-                var assemblyErrors = (cells[10] && cells[10].v !== null) ? parseFloat(cells[10].v) : null;
+                allPeople.push(person);
 
-                if (status === 'нет' || status === 'no' || status === 'false' || status === '0') {
-                    return;
-                }
-
-                var person = { 
-                    name: name, 
-                    type: type, 
-                    planOrders: planOrders || 0, 
-                    factOrders: factOrders || 0, 
-                    planQty: planQty || 0, 
-                    factQty: factQty || 0, 
-                    productCount: productCount,
-                    assemblyErrors: assemblyErrors,
-                    hidePlan: (hidePlan === 'да' || hidePlan === 'yes' || hidePlan === 'true' || hidePlan === '1'),
-                    showProducts: (showProductsSetting === 'да' || showProductsSetting === 'yes' || showProductsSetting === 'true' || showProductsSetting === '1')
-                };
-
-                if (typeLower.indexOf('сборщик') !== -1 || typeLower.indexOf('сборка') !== -1 || typeLower.indexOf('collector') !== -1) {
+                if (person.kind === 'collector') {
                     collectors.push(person);
                 } else {
-                    // Все остальные (водители и т.д.)
                     drivers.push(person);
                 }
             });
+
+            lastDashboardPeople = allPeople;
+            lastSettingsKeys = settingsMap;
+            updateMissingSettingsList();
 
             renderTable('table-collectors', collectors);
             renderTable('table-drivers', drivers);
