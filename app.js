@@ -6,17 +6,6 @@ var DEFAULTS = {
     refreshInterval: 60
 };
 
-var TYPE_DEFAULTS = {
-    collector: {
-        planOrders: 160,
-        planQty: 26000
-    },
-    driver: {
-        planOrders: 250,
-        planQty: 100000
-    }
-};
-
 function getConfig() {
     return {
         spreadsheetId: localStorage.getItem('dash_sheetId') || DEFAULTS.spreadsheetId,
@@ -29,8 +18,6 @@ function getConfig() {
 
 var countdownValue = getConfig().refreshInterval;
 var countdownTimer = null;
-var lastDashboardPeople = [];
-var lastSettingsKeys = {};
 
 // Settings modal
 function openSettings() {
@@ -40,21 +27,11 @@ function openSettings() {
     document.getElementById('dashboard-sheet-input').value = cfg.sheetName;
     document.getElementById('settings-sheet-input').value = cfg.settingsSheetName;
     document.getElementById('show-products-input').checked = cfg.showProductsColumn;
-    updateMissingSettingsList();
     document.getElementById('settings-modal').classList.add('open');
 }
 
 function closeSettings() {
     document.getElementById('settings-modal').classList.remove('open');
-}
-
-function switchSettingsTab(tabName) {
-    document.querySelectorAll('.settings-tab').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.tab === tabName);
-    });
-    document.querySelectorAll('.settings-panel').forEach(function(panel) {
-        panel.classList.toggle('active', panel.dataset.panel === tabName);
-    });
 }
 
 function saveSettings() {
@@ -81,7 +58,6 @@ function saveSettings() {
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
-window.switchSettingsTab = switchSettingsTab;
 
 function getSheetURL(sheetName, query) {
     var cfg = getConfig();
@@ -145,14 +121,14 @@ function parseSettingsRows(rows) {
     rows.forEach(function(row) {
         var name = normalizeText(getCell(row, 0));
         var type = normalizeText(getCell(row, 1));
-        if (!name || !type) return;
+        if (!name) return;
 
         var planOrders = parseFloat(getCell(row, 2));
         var planQty = parseFloat(getCell(row, 3));
         var assemblyErrorsValue = getCell(row, 7);
         var assemblyErrors = assemblyErrorsValue === '' ? null : parseFloat(assemblyErrorsValue);
 
-        map[normalizeKey(name, type)] = {
+        var settings = {
             planOrders: isNaN(planOrders) ? null : planOrders,
             planQty: isNaN(planQty) ? null : planQty,
             showDashboard: !isNo(getCell(row, 4)),
@@ -160,6 +136,11 @@ function parseSettingsRows(rows) {
             showProducts: isYes(getCell(row, 6)),
             assemblyErrors: isNaN(assemblyErrors) ? null : assemblyErrors
         };
+
+        map[normalizeText(name).toLowerCase()] = settings;
+        if (type) {
+            map[normalizeKey(name, type)] = settings;
+        }
     });
 
     return map;
@@ -171,19 +152,24 @@ function buildPerson(row, settingsMap, hasSettingsSheet) {
     if (!name || !type) return null;
 
     var kind = getPersonKind(type);
-    var defaults = TYPE_DEFAULTS[kind];
     var key = normalizeKey(name, type);
-    var settings = settingsMap[key] || null;
+    var settings = settingsMap[key] || settingsMap[normalizeText(name).toLowerCase()] || null;
 
-    var inlinePlanOrders = parseFloat(getCell(row, 2));
-    var factOrders = parseFloat(getCell(row, 3));
-    var inlinePlanQty = parseFloat(getCell(row, 4));
-    var factQty = parseFloat(getCell(row, 5));
-    var inlineErrors = parseFloat(getCell(row, 10));
+    if (!settings) {
+        return {
+            name: name,
+            type: type,
+            key: key,
+            missingSettings: true
+        };
+    }
+
+    var factOrders = parseFloat(getCell(row, 2));
+    var factQty = parseFloat(getCell(row, 3));
 
     var showDashboard = hasSettingsSheet
-        ? (!settings || settings.showDashboard)
-        : !isNo(getCell(row, 7));
+        ? settings.showDashboard
+        : true;
 
     if (!showDashboard) return null;
 
@@ -193,36 +179,15 @@ function buildPerson(row, settingsMap, hasSettingsSheet) {
         key: key,
         kind: kind,
         hasManualSettings: !!settings,
-        planOrders: settings && settings.planOrders !== null ? settings.planOrders : (hasSettingsSheet ? defaults.planOrders : (inlinePlanOrders || 0)),
+        planOrders: settings && settings.planOrders !== null ? settings.planOrders : 0,
         factOrders: factOrders || 0,
-        planQty: settings && settings.planQty !== null ? settings.planQty : (hasSettingsSheet ? defaults.planQty : (inlinePlanQty || 0)),
+        planQty: settings && settings.planQty !== null ? settings.planQty : 0,
         factQty: factQty || 0,
-        productCount: getCell(row, 6),
-        assemblyErrors: settings && settings.assemblyErrors !== null ? settings.assemblyErrors : (hasSettingsSheet ? null : (isNaN(inlineErrors) ? null : inlineErrors)),
-        hidePlan: hasSettingsSheet ? !!(settings && settings.hidePlan) : isYes(getCell(row, 8)),
-        showProducts: hasSettingsSheet ? !!(settings && settings.showProducts) : isYes(getCell(row, 9))
+        productCount: getCell(row, 4),
+        assemblyErrors: settings && settings.assemblyErrors !== null ? settings.assemblyErrors : null,
+        hidePlan: !!(settings && settings.hidePlan),
+        showProducts: !!(settings && settings.showProducts)
     };
-}
-
-function updateMissingSettingsList() {
-    var el = document.getElementById('missing-settings-list');
-    if (!el) return;
-
-    var missing = lastDashboardPeople.filter(function(person) {
-        return person.name && person.type && !lastSettingsKeys[person.key];
-    });
-
-    if (missing.length === 0) {
-        el.innerHTML = '<div class="missing-empty">Нет новых сотрудников.</div>';
-        return;
-    }
-
-    el.innerHTML = missing.map(function(person) {
-        return '<div class="missing-item">' +
-            '<span>' + escapeHTML(person.name) + '</span>' +
-            '<span>' + escapeHTML(person.type) + '</span>' +
-        '</div>';
-    }).join('');
 }
 
 function fetchData() {
@@ -231,7 +196,7 @@ function fetchData() {
     var cfg = getConfig();
     
     Promise.all([
-        fetchSheetRows(cfg.sheetName, 'SELECT A,B,C,D,E,F,G,H,I,J,K WHERE A IS NOT NULL'),
+        fetchSheetRows(cfg.sheetName, 'SELECT A,B,C,D,E WHERE A IS NOT NULL'),
         fetchSheetRows(cfg.settingsSheetName, 'SELECT A,B,C,D,E,F,G,H WHERE A IS NOT NULL')
             .then(function(rows) {
                 return { rows: rows, available: true };
@@ -247,13 +212,16 @@ function fetchData() {
             var settingsMap = parseSettingsRows(settingsState.rows);
             var collectors = [];
             var drivers = [];
-            var allPeople = [];
+            var missingSettings = [];
 
             rows.forEach(function(row) {
                 var person = buildPerson(row, settingsMap, settingsState.available);
                 if (!person) return;
 
-                allPeople.push(person);
+                if (person.missingSettings) {
+                    missingSettings.push(person);
+                    return;
+                }
 
                 if (person.kind === 'collector') {
                     collectors.push(person);
@@ -262,12 +230,9 @@ function fetchData() {
                 }
             });
 
-            lastDashboardPeople = allPeople;
-            lastSettingsKeys = settingsMap;
-            updateMissingSettingsList();
-
             renderTable('table-collectors', collectors);
             renderTable('table-drivers', drivers);
+            renderSettingsWarning(missingSettings);
             updateDate();
         })
         .catch(function(err) {
@@ -285,6 +250,24 @@ function fetchData() {
                 }, 1000);
             }
         });
+}
+
+function renderSettingsWarning(people) {
+    var el = document.getElementById('settings-warning');
+    if (!el) return;
+
+    if (!people.length) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+
+    var names = people.map(function(person) {
+        return escapeHTML(person.name) + ' (' + escapeHTML(person.type) + ')';
+    }).join(', ');
+
+    el.hidden = false;
+    el.innerHTML = '<strong>Нужно добавить в лист "Настройки":</strong> ' + names;
 }
 
 function getPerformanceClass(pct) {

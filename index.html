@@ -18,6 +18,8 @@
         </div>
     </header>
 
+    <div class="settings-warning" id="settings-warning" hidden></div>
+
     <main>
         <div class="column">
             <h2>СБОРЩИКИ</h2>
@@ -61,42 +63,28 @@
     <div class="modal-overlay" id="settings-modal">
         <div class="modal">
             <h3>Настройки</h3>
-            <div class="settings-tabs">
-                <button class="settings-tab active" type="button" data-tab="general" onclick="switchSettingsTab('general')">Общие</button>
-                <button class="settings-tab" type="button" data-tab="people" onclick="switchSettingsTab('people')">Лист настроек</button>
+            <label for="refresh-input">Интервал обновления (секунды)</label>
+            <input type="number" id="refresh-input" min="10" max="600" value="60">
+            <div class="form-group">
+                <label>ID Google таблицы</label>
+                <input type="text" id="sheet-input">
             </div>
-
-            <div class="settings-panel active" data-panel="general">
-                <label for="refresh-input">Интервал обновления (секунды)</label>
-                <input type="number" id="refresh-input" min="10" max="600" value="60">
-                <div class="form-group">
-                    <label>ID Google таблицы</label>
-                    <input type="text" id="sheet-input">
-                </div>
-                <div class="form-group">
-                    <label>Лист дашборда</label>
-                    <input type="text" id="dashboard-sheet-input" value="dashport">
-                </div>
-                <div class="form-group checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="show-products-input">
-                        Показывать колонку "Наименования"
-                    </label>
-                </div>
+            <div class="form-group">
+                <label>Лист дашборда</label>
+                <input type="text" id="dashboard-sheet-input" value="dashport">
             </div>
-
-            <div class="settings-panel" data-panel="people">
-                <div class="form-group">
-                    <label>Лист ручных настроек</label>
-                    <input type="text" id="settings-sheet-input" value="Настройки">
-                </div>
-                <div class="settings-help">
-                    Колонки листа: Имя, Тип, План заявок, План кол-во, Выводить дашборд, Скрыть план, Вводить наименование, Ошибки сборки.
-                </div>
-                <div class="missing-box">
-                    <div class="missing-title">Новые сотрудники без ручных настроек</div>
-                    <div id="missing-settings-list" class="missing-list">Данные появятся после загрузки таблицы.</div>
-                </div>
+            <div class="form-group">
+                <label>Лист ручных настроек</label>
+                <input type="text" id="settings-sheet-input" value="Настройки">
+            </div>
+            <div class="settings-help">
+                Люди без строки в ручных настройках показываются только с фактическими показателями, без плана.
+            </div>
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-products-input">
+                    Показывать колонку "Наименования"
+                </label>
             </div>
 
             <div class="modal-actions">
