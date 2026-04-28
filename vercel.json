@@ -8,7 +8,8 @@
         "includeFiles": [
           "index.html",
           "app.js",
-          "style.css"
+          "style.css",
+          "fruit_vegetable_pumpkin_1812.png"
         ]
       }
     }
