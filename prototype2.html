@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Дашборд — вариант 2</title>
+<style>
+:root{
+  --bg:#eef1f7; --card:#ffffff; --ink:#1c2536; --muted:#8a93a6; --line:#e6e9f0;
+  --accent:#3b6cff;
+  --ok:#16b981; --good:#7bc043; --warn:#f5a524; --bad:#ef4060;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100vh;overflow:hidden;font-family:'Segoe UI',Tahoma,sans-serif;color:var(--ink);
+  background:var(--bg)}
+body{display:flex;flex-direction:column}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 34px;flex-shrink:0;
+  background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 2px 12px rgba(20,30,60,.05)}
+.brand{display:flex;align-items:center;gap:14px}
+.brand .mark{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,#3b6cff,#7a5cff);
+  display:flex;align-items:center;justify-content:center;font-size:24px}
+.brand h1{font-size:1.55rem;font-weight:800;letter-spacing:1px}
+.brand .sub{font-size:.72rem;color:var(--muted);letter-spacing:3px;font-weight:700}
+.hinfo{display:flex;align-items:center;gap:18px;color:var(--muted)}
+.hinfo .date{font-size:1rem;font-weight:600;color:#5a6478}
+.live{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:700;padding:6px 14px;border-radius:999px;
+  background:rgba(22,185,129,.12);color:#0e9c6c}
+.live .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(22,185,129,.5)}70%{box-shadow:0 0 0 9px rgba(22,185,129,0)}100%{box-shadow:0 0 0 0 rgba(22,185,129,0)}}
+
+/* LAYOUT */
+main{flex:1;display:flex;gap:20px;padding:20px 24px;min-height:0}
+.panel{flex:1;display:flex;flex-direction:column;min-width:0}
+.panel-head{display:flex;align-items:center;gap:12px;padding:0 6px 14px;flex-shrink:0}
+.panel-head .ic{font-size:1.4rem}
+.panel-head h2{font-size:1.2rem;font-weight:800;letter-spacing:1.5px;color:#39435a}
+.panel-head .count{margin-left:auto;font-size:.82rem;color:var(--muted);background:var(--card);
+  padding:5px 12px;border-radius:999px;border:1px solid var(--line)}
+.panel-body{flex:1;display:flex;flex-direction:column;min-height:0;gap:12px}
+
+/* LEADER HERO */
+.hero{flex-shrink:0;display:flex;align-items:center;gap:20px;padding:18px 22px;border-radius:18px;
+  color:#fff;background:linear-gradient(120deg,#1f3aa6,#3b6cff 60%,#5a8bff);
+  box-shadow:0 12px 30px rgba(59,108,255,.32);position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-30px;top:-40px;width:180px;height:180px;border-radius:50%;
+  background:rgba(255,255,255,.08)}
+.hero .crown{font-size:2rem}
+.hero .ava{width:66px;height:66px;border-radius:50%;background:rgba(255,255,255,.22);
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.4rem;flex-shrink:0}
+.hero .info{min-width:0}
+.hero .lead-label{font-size:.72rem;letter-spacing:2px;opacity:.85;font-weight:700}
+.hero .lead-name{font-size:1.55rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero .lead-sub{font-size:.9rem;opacity:.9;margin-top:2px}
+.hero .lead-pct{margin-left:auto;font-size:3rem;font-weight:900;font-variant-numeric:tabular-nums;z-index:1}
+
+/* RACE ROWS */
+.list{flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.row{flex:1 1 0;position:relative;display:flex;align-items:center;gap:16px;padding:0 20px;
+  background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  box-shadow:0 2px 8px rgba(20,30,60,.04);animation:slidein .5s ease both}
+@keyframes slidein{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+.row .fillbg{position:absolute;left:0;top:0;bottom:0;border-radius:14px 0 0 14px;opacity:.14;
+  transition:width 1s cubic-bezier(.4,0,.2,1)}
+.row .rk{position:relative;z-index:1;width:40px;text-align:center;font-size:1.7rem;font-weight:900;color:#aeb6c6}
+.row .ava{position:relative;z-index:1;width:46px;height:46px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;color:#fff}
+.row .nm{position:relative;z-index:1;flex:1;min-width:0;font-size:1.3rem;font-weight:700;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{position:relative;z-index:1;font-size:.92rem;color:var(--muted);font-weight:600;white-space:nowrap}
+.row .sub b{color:#5a6478}
+.row .pct{position:relative;z-index:1;width:96px;text-align:right;font-size:2.1rem;font-weight:900;
+  font-variant-numeric:tabular-nums}
+
+.b-ok{background:var(--ok)}    .t-ok{color:var(--ok)}
+.b-good{background:var(--good)}.t-good{color:var(--good)}
+.b-warn{background:var(--warn)}.t-warn{color:var(--warn)}
+.b-bad{background:var(--bad)}  .t-bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="mark">📦</div>
+    <div><h1>ДАШБОРД РЕЗУЛЬТАТИВНОСТИ</h1><div class="sub">TELEMARKET · СКЛАД</div></div>
+  </div>
+  <div class="hinfo">
+    <span class="date" id="date"></span>
+    <span class="live"><span class="dot"></span>LIVE · 60с</span>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="panel-collectors">
+    <div class="panel-head"><span class="ic">🧺</span><h2>СБОРЩИКИ</h2><span class="count"></span></div>
+    <div class="panel-body"></div>
+  </section>
+  <section class="panel" id="panel-drivers">
+    <div class="panel-head"><span class="ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="count"></span></div>
+    <div class="panel-body"></div>
+  </section>
+</main>
+
+<script>
+var collectors=[
+  ['Sarcov Vadim',160,40,26000,20586],['Moraru Iurie',160,44,26000,15467],
+  ['Chiosea Aurel',160,46,26000,15036],['Cvilencov Igor',160,38,26000,14022],
+  ['Redin Vladislav',160,41,26000,13364],['Parfinii Vitalii',160,36,26000,10572],
+  ['Golovcenco Dumitru',160,33,26000,9082],['Sirbu Vadim',160,25,26000,9484],
+  ['Iunac Nikolae',160,26,26000,8457],
+];
+var drivers=[
+  ['Eni Artiom',250,63,100000,28333],['Vascisin Iurii',250,62,100000,21766],
+  ['Popa Tudor',250,65,100000,19946],['Saranciuc Vadim',250,52,100000,25123],
+  ['Nazarov Oleg',250,62,100000,19562],['Taranu Tudor',250,4,100000,2127],
+];
+function fmt(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');}
+function initials(n){return n.split(' ').map(function(w){return w[0];}).slice(0,2).join('').toUpperCase();}
+function status(p){return p>=75?'ok':p>=50?'good':p>=30?'warn':'bad';}
+function build(a){return a.map(function(r){var q=Math.round(r[4]/r[3]*100);
+  return{name:r[0],planO:r[1],factO:r[2],planQ:r[3],factQ:r[4],pct:q,st:status(q)};})
+  .sort(function(x,y){return y.pct-x.pct;});}
+
+function hero(p){
+  return '<div class="hero"><span class="crown">👑</span>'+
+    '<div class="ava">'+initials(p.name)+'</div>'+
+    '<div class="info"><div class="lead-label">ЛИДЕР · 1 МЕСТО</div>'+
+      '<div class="lead-name">'+p.name+'</div>'+
+      '<div class="lead-sub">Кол-во '+fmt(p.factQ)+' / '+fmt(p.planQ)+'  ·  Заявки '+p.factO+'/'+p.planO+'</div></div>'+
+    '<div class="lead-pct">'+p.pct+'%</div></div>';
+}
+function row(p,rank){
+  var w=Math.min(p.pct,100);
+  return '<div class="row">'+
+    '<div class="fillbg b-'+p.st+'" style="width:'+w+'%"></div>'+
+    '<div class="rk">'+rank+'</div>'+
+    '<div class="ava b-'+p.st+'">'+initials(p.name)+'</div>'+
+    '<div class="nm">'+p.name+'</div>'+
+    '<div class="sub">Кол-во <b>'+fmt(p.factQ)+'</b> · Заявки <b>'+p.factO+'</b></div>'+
+    '<div class="pct t-'+p.st+'">'+p.pct+'%</div></div>';
+}
+function render(id,arr){
+  var ppl=build(arr),panel=document.getElementById(id);
+  panel.querySelector('.count').textContent=ppl.length+' чел.';
+  var rest=ppl.slice(1).map(function(p,i){return row(p,i+2);}).join('');
+  panel.querySelector('.panel-body').innerHTML=hero(ppl[0])+'<div class="list">'+rest+'</div>';
+}
+render('panel-collectors',collectors);
+render('panel-drivers',drivers);
+document.getElementById('date').textContent=new Date().toLocaleDateString('ru-RU',
+  {weekday:'short',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'});
+</script>
+</body>
+</html>

@@ -59,9 +59,12 @@ window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
 
-function getSheetURL(sheetName, query) {
+function getSheetURL(sheetName, query, range) {
     var cfg = getConfig();
-    return 'https://docs.google.com/spreadsheets/d/' + cfg.spreadsheetId + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName) + '&tq=' + encodeURIComponent(query);
+    var url = 'https://docs.google.com/spreadsheets/d/' + cfg.spreadsheetId + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName);
+    if (range) url += '&range=' + encodeURIComponent(range) + '&headers=0';
+    if (query) url += '&tq=' + encodeURIComponent(query);
+    return url;
 }
 
 function parseGvizResponse(text) {
@@ -79,10 +82,120 @@ function parseGvizResponse(text) {
     return (data.table && data.table.rows) || [];
 }
 
-function fetchSheetRows(sheetName, query) {
-    return fetch(getSheetURL(sheetName, query))
+function fetchSheetRows(sheetName, query, range) {
+    return fetch(getSheetURL(sheetName, query, range))
         .then(function(response) { return response.text(); })
         .then(parseGvizResponse);
+}
+
+// --- THEME SWITCH ----------------------------------------------------------
+// Берём активную тему из листа "Настройки": ищем строку, где в колонке K
+// стоит "Тема оформления" (или похожее), и читаем значение из колонки L.
+// Падаем обратно в Вариант 1, если что-то пошло не так.
+function fetchTheme() {
+    var cfg = getConfig();
+    return fetchSheetRows(cfg.settingsSheetName, 'SELECT K,L WHERE K IS NOT NULL OR L IS NOT NULL')
+        .then(function(rows) {
+            for (var i = 0; i < rows.length; i++) {
+                var k = normalizeText(getCell(rows[i], 0)).toLowerCase();
+                if (k.indexOf('тема') !== -1 || k.indexOf('оформ') !== -1) {
+                    var v = normalizeText(getCell(rows[i], 1));
+                    if (v) return v;
+                }
+            }
+            for (var j = 0; j < rows.length; j++) {
+                var v2 = normalizeText(getCell(rows[j], 1));
+                if (v2) return v2;
+            }
+            return 'Вариант 1';
+        })
+        .catch(function() { return 'Вариант 1'; });
+}
+
+function themeFromName(name) {
+    var n = (name || '').toString().toLowerCase().replace(/\s+/g, '');
+    if (n.indexOf('вариант2') !== -1 || n.indexOf('variant2') !== -1 || n === '2') return 'theme-2';
+    if (n.indexOf('вариант3') !== -1 || n.indexOf('variant3') !== -1 || n === '3') return 'theme-3';
+    if (n.indexOf('вариант4') !== -1 || n.indexOf('variant4') !== -1 || n === '4') return 'theme-4';
+    return 'theme-1';
+}
+
+var currentTheme = null;
+
+function applyTheme(theme) {
+    if (currentTheme === theme) return false;
+    var body = document.body;
+    body.classList.remove('theme-1', 'theme-2', 'theme-3');
+    body.classList.add(theme);
+    currentTheme = theme;
+    return true;
+}
+
+function rebuildMainForTheme(theme) {
+    var main = document.querySelector('main');
+    if (!main) return;
+    if (theme === 'theme-1') {
+        main.innerHTML =
+            '<div class="column"><h2>СБОРЩИКИ</h2>' +
+              '<table id="table-collectors"><thead><tr>' +
+                '<th class="rank">#</th><th class="name-col">Имя</th>' +
+                '<th>Заявки (П/Ф)</th><th>Ошибки</th>' +
+                '<th class="bar-col">Вып. (Заявки)</th>' +
+                '<th>Кол-во (П/Ф)</th>' +
+                '<th class="bar-col">Вып. (Кол-во)</th>' +
+                '<th>Наим.</th>' +
+              '</tr></thead><tbody></tbody></table>' +
+            '</div>' +
+            '<div class="column"><h2>ВОДИТЕЛИ</h2>' +
+              '<table id="table-drivers"><thead><tr>' +
+                '<th class="rank">#</th><th class="name-col">Имя</th>' +
+                '<th>Заявки (П/Ф)</th><th>Ошибки</th>' +
+                '<th class="bar-col">Вып. (Заявки)</th>' +
+                '<th>Кол-во (П/Ф)</th>' +
+                '<th class="bar-col">Вып. (Кол-во)</th>' +
+                '<th>Наим.</th>' +
+              '</tr></thead><tbody></tbody></table>' +
+            '</div>';
+    } else if (theme === 'theme-2') {
+        main.innerHTML =
+            '<section class="t2-panel" id="t2-collectors">' +
+              '<div class="t2-head"><span class="t2-ic">🧺</span><h2>СБОРЩИКИ</h2><span class="t2-count"></span></div>' +
+              '<div class="t2-body"></div></section>' +
+            '<section class="t2-panel" id="t2-drivers">' +
+              '<div class="t2-head"><span class="t2-ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="t2-count"></span></div>' +
+              '<div class="t2-body"></div></section>';
+    } else if (theme === 'theme-3') {
+        main.innerHTML =
+            '<section class="t3-panel" id="t3-collectors">' +
+              '<div class="t3-head"><span class="t3-ic">🧺</span><h2>СБОРЩИКИ</h2><span class="t3-count"></span></div>' +
+              '<div class="t3-body"></div></section>' +
+            '<section class="t3-panel" id="t3-drivers">' +
+              '<div class="t3-head"><span class="t3-ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="t3-count"></span></div>' +
+              '<div class="t3-body"></div></section>';
+    } else if (theme === 'theme-4') {
+        main.innerHTML =
+            '<section class="t4-panel" id="t4-collectors">' +
+              '<div class="t4-head"><span class="t4-ic">🧺</span><h2>СБОРЩИКИ</h2><span class="t4-count"></span></div>' +
+              '<div class="t4-body"></div></section>' +
+            '<section class="t4-panel" id="t4-drivers">' +
+              '<div class="t4-head"><span class="t4-ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="t4-count"></span></div>' +
+              '<div class="t4-body"></div></section>';
+    }
+}
+
+function getQtyPct(p) {
+    return p.planQty > 0 ? Math.round(p.factQty / p.planQty * 100) : 0;
+}
+
+function statusClass(pct) {
+    if (pct >= 75) return 'ok';
+    if (pct >= 50) return 'good';
+    if (pct >= 30) return 'warn';
+    return 'bad';
+}
+
+function initials(name) {
+    return (name || '').split(/\s+/).map(function(w){ return (w && w[0]) || ''; }).slice(0, 2).join('').toUpperCase();
 }
 
 function normalizeText(value) {
@@ -204,11 +317,17 @@ function fetchData() {
             .catch(function(err) {
                 console.warn('Settings sheet unavailable, using inline dashboard settings:', err);
                 return { rows: [], available: false };
-            })
+            }),
+        fetchTheme()
     ])
         .then(function(results) {
             var rows = results[0];
             var settingsState = results[1];
+            var themeName = results[2];
+            var theme = themeFromName(themeName);
+
+            if (applyTheme(theme)) rebuildMainForTheme(theme);
+
             var settingsMap = parseSettingsRows(settingsState.rows);
             var collectors = [];
             var drivers = [];
@@ -230,8 +349,20 @@ function fetchData() {
                 }
             });
 
-            renderTable('table-collectors', collectors);
-            renderTable('table-drivers', drivers);
+            if (theme === 'theme-2') {
+                renderTheme2('t2-collectors', collectors);
+                renderTheme2('t2-drivers', drivers);
+            } else if (theme === 'theme-3') {
+                renderTheme3('t3-collectors', collectors);
+                renderTheme3('t3-drivers', drivers);
+            } else if (theme === 'theme-4') {
+                renderTheme4('t4-collectors', collectors);
+                renderTheme4('t4-drivers', drivers);
+            } else {
+                renderTable('table-collectors', collectors);
+                renderTable('table-drivers', drivers);
+            }
+
             renderSettingsWarning(missingSettings);
             updateDate();
         })
@@ -380,6 +511,167 @@ function renderTable(tableId, people) {
     });
 
     tbody.innerHTML = rowsHtml.join('');
+}
+
+// --- THEME 2: тёмный пьедестал --------------------------------------------
+function renderTheme2(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var body = panel.querySelector('.t2-body');
+    var count = panel.querySelector('.t2-count');
+    if (!body) return;
+
+    if (!people.length) {
+        body.innerHTML = '<div class="t2-empty">Нет данных</div>';
+        if (count) count.textContent = '';
+        return;
+    }
+
+    people = people.slice();
+    people.forEach(function(p){ p._pct = getQtyPct(p); p._st = statusClass(p._pct); });
+    people.sort(function(a, b){ return b._pct - a._pct; });
+    if (count) count.textContent = people.length + ' чел.';
+
+    var top = people.slice(0, 3);
+    var rest = people.slice(3);
+
+    function podium(p, rank) {
+        var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+        var crown = rank === 1 ? '<span class="t2-crown">👑</span>' : '';
+        return '<div class="t2-pod t2-p' + rank + '">' + crown +
+            '<div class="t2-medal">' + medal + '</div>' +
+            '<div class="t2-ava">' + escapeHTML(initials(p.name)) + '</div>' +
+            '<div class="t2-nm">' + escapeHTML(p.name) + '</div>' +
+            '<div class="t2-big t2-c-' + p._st + '">' + p._pct + '%</div>' +
+            '<div class="t2-small">' + formatNumber(p.factQty) + ' / ' + formatNumber(p.planQty) + '</div>' +
+        '</div>';
+    }
+
+    function listRow(p, rank) {
+        var w = Math.min(p._pct, 100);
+        return '<div class="t2-row t2-s-' + p._st + '">' +
+            '<div class="t2-rk">' + rank + '</div>' +
+            '<div class="t2-mid">' +
+                '<div class="t2-name">' + escapeHTML(p.name) + '</div>' +
+                '<div class="t2-bar"><div class="t2-fill t2-f-' + p._st + '" style="width:' + w + '%"></div></div>' +
+                '<div class="t2-meta">' +
+                    '<span>Кол-во <b>' + formatNumber(p.factQty) + '</b>/' + formatNumber(p.planQty) + '</span>' +
+                    '<span>Заявки <b>' + formatNumber(p.factOrders) + '</b>/' + formatNumber(p.planOrders) + '</span>' +
+                '</div>' +
+            '</div>' +
+            '<div class="t2-pct t2-c-' + p._st + '">' + p._pct + '%<small>ВЫПОЛНЕНО</small></div>' +
+        '</div>';
+    }
+
+    var podHtml = '';
+    if (top[1]) podHtml += podium(top[1], 2);
+    if (top[0]) podHtml += podium(top[0], 1);
+    if (top[2]) podHtml += podium(top[2], 3);
+    var restHtml = rest.map(function(p, i){ return listRow(p, i + 4); }).join('');
+
+    body.innerHTML = '<div class="t2-podium">' + podHtml + '</div>' +
+                     '<div class="t2-list">' + restHtml + '</div>';
+}
+
+// --- THEME 3: светлый лидер-баннер ----------------------------------------
+function renderTheme3(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var body = panel.querySelector('.t3-body');
+    var count = panel.querySelector('.t3-count');
+    if (!body) return;
+
+    if (!people.length) {
+        body.innerHTML = '<div class="t3-empty">Нет данных</div>';
+        if (count) count.textContent = '';
+        return;
+    }
+
+    people = people.slice();
+    people.forEach(function(p){ p._pct = getQtyPct(p); p._st = statusClass(p._pct); });
+    people.sort(function(a, b){ return b._pct - a._pct; });
+    if (count) count.textContent = people.length + ' чел.';
+
+    var lead = people[0];
+    var rest = people.slice(1);
+
+    var hero = '<div class="t3-hero"><span class="t3-crown">👑</span>' +
+        '<div class="t3-ava">' + escapeHTML(initials(lead.name)) + '</div>' +
+        '<div class="t3-info">' +
+            '<div class="t3-label">ЛИДЕР · 1 МЕСТО</div>' +
+            '<div class="t3-name">' + escapeHTML(lead.name) + '</div>' +
+            '<div class="t3-sub">Кол-во ' + formatNumber(lead.factQty) + ' / ' + formatNumber(lead.planQty) +
+                ' · Заявки ' + formatNumber(lead.factOrders) + '/' + formatNumber(lead.planOrders) + '</div>' +
+        '</div>' +
+        '<div class="t3-pct">' + lead._pct + '%</div></div>';
+
+    var restHtml = rest.map(function(p, i) {
+        var rank = i + 2;
+        var w = Math.min(p._pct, 100);
+        return '<div class="t3-row">' +
+            '<div class="t3-fillbg t3-b-' + p._st + '" style="width:' + w + '%"></div>' +
+            '<div class="t3-rk">' + rank + '</div>' +
+            '<div class="t3-rava t3-b-' + p._st + '">' + escapeHTML(initials(p.name)) + '</div>' +
+            '<div class="t3-nm">' + escapeHTML(p.name) + '</div>' +
+            '<div class="t3-sub">Кол-во <b>' + formatNumber(p.factQty) + '</b> · Заявки <b>' + formatNumber(p.factOrders) + '</b></div>' +
+            '<div class="t3-rpct t3-t-' + p._st + '">' + p._pct + '%</div>' +
+        '</div>';
+    }).join('');
+
+    body.innerHTML = hero + '<div class="t3-list">' + restHtml + '</div>';
+}
+
+// --- THEME 4: неоновые кольца прогресса -----------------------------------
+function renderTheme4(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var body = panel.querySelector('.t4-body');
+    var count = panel.querySelector('.t4-count');
+    if (!body) return;
+
+    if (!people.length) {
+        body.innerHTML = '<div class="t4-empty">Нет данных</div>';
+        if (count) count.textContent = '';
+        return;
+    }
+
+    people = people.slice();
+    people.forEach(function(p){ p._pct = getQtyPct(p); p._st = statusClass(p._pct); });
+    people.sort(function(a, b){ return b._pct - a._pct; });
+    if (count) count.textContent = people.length + ' чел.';
+
+    var CIRC = 2 * Math.PI * 44; // r=44 in viewBox 100x100
+
+    function tile(p, rank) {
+        var capped = Math.min(p._pct, 100);
+        var offset = (CIRC * (1 - capped / 100)).toFixed(2);
+        var leaderCls = rank === 1 ? ' t4-leader' : '';
+        var medal = rank === 1 ? '<span class="t4-medal">🥇</span>'
+                  : rank === 2 ? '<span class="t4-medal">🥈</span>'
+                  : rank === 3 ? '<span class="t4-medal">🥉</span>' : '';
+        var ring =
+            '<svg class="t4-ring" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">' +
+                '<circle class="t4-ring-bg" cx="50" cy="50" r="44"></circle>' +
+                '<circle class="t4-ring-fg t4-rs-' + p._st + '" cx="50" cy="50" r="44" ' +
+                    'stroke-dasharray="' + CIRC.toFixed(2) + '" ' +
+                    'stroke-dashoffset="' + offset + '"></circle>' +
+            '</svg>';
+        return '<div class="t4-tile' + leaderCls + '">' + medal +
+            '<div class="t4-rank">#' + rank + '</div>' +
+            '<div class="t4-ring-wrap">' + ring +
+                '<div class="t4-center">' +
+                    '<div class="t4-init">' + escapeHTML(initials(p.name)) + '</div>' +
+                    '<div class="t4-pct t4-c-' + p._st + '">' + p._pct + '<small>%</small></div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="t4-name">' + escapeHTML(p.name) + '</div>' +
+            '<div class="t4-meta">' + formatNumber(p.factQty) + ' / ' + formatNumber(p.planQty) + '</div>' +
+        '</div>';
+    }
+
+    body.innerHTML = '<div class="t4-grid">' +
+        people.map(function(p, i){ return tile(p, i + 1); }).join('') +
+    '</div>';
 }
 
 function escapeHTML(str) {
