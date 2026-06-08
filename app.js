@@ -91,10 +91,13 @@ function fetchSheetRows(sheetName, query, range) {
 // --- THEME SWITCH ----------------------------------------------------------
 // Берём активную тему из листа "Настройки": ищем строку, где в колонке K
 // стоит "Тема оформления" (или похожее), и читаем значение из колонки L.
+// ВАЖНО: используем range= вместо tq=SELECT, чтобы fetchSheetRows прокинул
+// headers=0 — иначе gviz берёт row 1 за шапку и значение "Вариант N" уходит
+// в метаданные, а rows[] остаётся пустым.
 // Падаем обратно в Вариант 1, если что-то пошло не так.
 function fetchTheme() {
     var cfg = getConfig();
-    return fetchSheetRows(cfg.settingsSheetName, 'SELECT K,L WHERE K IS NOT NULL OR L IS NOT NULL')
+    return fetchSheetRows(cfg.settingsSheetName, '', 'K1:L40')
         .then(function(rows) {
             for (var i = 0; i < rows.length; i++) {
                 var k = normalizeText(getCell(rows[i], 0)).toLowerCase();
