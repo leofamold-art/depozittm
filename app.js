@@ -116,10 +116,14 @@ function fetchTheme() {
 }
 
 function themeFromName(name) {
-    var n = (name || '').toString().toLowerCase().replace(/\s+/g, '');
-    if (n.indexOf('вариант2') !== -1 || n.indexOf('variant2') !== -1 || n === '2') return 'theme-2';
-    if (n.indexOf('вариант3') !== -1 || n.indexOf('variant3') !== -1 || n === '3') return 'theme-3';
-    if (n.indexOf('вариант4') !== -1 || n.indexOf('variant4') !== -1 || n === '4') return 'theme-4';
+    // Берём первую цифру 1–4 из строки — устойчиво к опечаткам в слове
+    // ("Вариант", "Варинат", "Variant", "опт. 2" и т.п.).
+    var m = (name || '').toString().match(/[1-4]/);
+    if (m) {
+        if (m[0] === '2') return 'theme-2';
+        if (m[0] === '3') return 'theme-3';
+        if (m[0] === '4') return 'theme-4';
+    }
     return 'theme-1';
 }
 
