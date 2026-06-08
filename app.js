@@ -116,14 +116,10 @@ function fetchTheme() {
 }
 
 function themeFromName(name) {
-    // Берём первую цифру 1–4 из строки — устойчиво к опечаткам в слове
+    // Берём первую цифру 1–7 из строки — устойчиво к опечаткам в слове
     // ("Вариант", "Варинат", "Variant", "опт. 2" и т.п.).
-    var m = (name || '').toString().match(/[1-4]/);
-    if (m) {
-        if (m[0] === '2') return 'theme-2';
-        if (m[0] === '3') return 'theme-3';
-        if (m[0] === '4') return 'theme-4';
-    }
+    var m = (name || '').toString().match(/[1-7]/);
+    if (m) return 'theme-' + m[0];
     return 'theme-1';
 }
 
@@ -132,10 +128,20 @@ var currentTheme = null;
 function applyTheme(theme) {
     if (currentTheme === theme) return false;
     var body = document.body;
-    body.classList.remove('theme-1', 'theme-2', 'theme-3');
+    body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5', 'theme-6', 'theme-7');
     body.classList.add(theme);
     currentTheme = theme;
     return true;
+}
+
+// Каркас панелей для тем 5–7 одинаков по структуре, отличается префиксом классов.
+function panelScaffold(prefix) {
+    return '<section class="' + prefix + '-panel" id="' + prefix + '-collectors">' +
+              '<div class="' + prefix + '-head"><span class="' + prefix + '-ic">🧺</span><h2>СБОРЩИКИ</h2><span class="' + prefix + '-count"></span></div>' +
+              '<div class="' + prefix + '-body"></div></section>' +
+           '<section class="' + prefix + '-panel" id="' + prefix + '-drivers">' +
+              '<div class="' + prefix + '-head"><span class="' + prefix + '-ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="' + prefix + '-count"></span></div>' +
+              '<div class="' + prefix + '-body"></div></section>';
 }
 
 function rebuildMainForTheme(theme) {
@@ -187,6 +193,12 @@ function rebuildMainForTheme(theme) {
             '<section class="t4-panel" id="t4-drivers">' +
               '<div class="t4-head"><span class="t4-ic">🚚</span><h2>ВОДИТЕЛИ</h2><span class="t4-count"></span></div>' +
               '<div class="t4-body"></div></section>';
+    } else if (theme === 'theme-5') {
+        main.innerHTML = panelScaffold('t5');
+    } else if (theme === 'theme-6') {
+        main.innerHTML = panelScaffold('t6');
+    } else if (theme === 'theme-7') {
+        main.innerHTML = panelScaffold('t7');
     }
 }
 
@@ -365,6 +377,15 @@ function fetchData() {
             } else if (theme === 'theme-4') {
                 renderTheme4('t4-collectors', collectors);
                 renderTheme4('t4-drivers', drivers);
+            } else if (theme === 'theme-5') {
+                renderTheme5('t5-collectors', collectors);
+                renderTheme5('t5-drivers', drivers);
+            } else if (theme === 'theme-6') {
+                renderTheme6('t6-collectors', collectors);
+                renderTheme6('t6-drivers', drivers);
+            } else if (theme === 'theme-7') {
+                renderTheme7('t7-collectors', collectors);
+                renderTheme7('t7-drivers', drivers);
             } else {
                 renderTable('table-collectors', collectors);
                 renderTable('table-drivers', drivers);
@@ -679,6 +700,113 @@ function renderTheme4(panelId, people) {
     body.innerHTML = '<div class="t4-grid">' +
         people.map(function(p, i){ return tile(p, i + 1); }).join('') +
     '</div>';
+}
+
+// Подготовка: проценты, статус, сортировка, заполнение счётчика.
+// Возвращает массив или null (если данных нет — отрисовывает заглушку).
+function prepPeople(panel, prefix, people) {
+    var body = panel.querySelector('.' + prefix + '-body');
+    var count = panel.querySelector('.' + prefix + '-count');
+    if (!body) return null;
+    if (!people.length) {
+        body.innerHTML = '<div class="' + prefix + '-empty">Нет данных</div>';
+        if (count) count.textContent = '';
+        return null;
+    }
+    people = people.slice();
+    people.forEach(function(p){ p._pct = getQtyPct(p); p._st = statusClass(p._pct); });
+    people.sort(function(a, b){ return b._pct - a._pct; });
+    if (count) count.textContent = people.length + ' чел.';
+    return { body: body, list: people };
+}
+
+// --- THEME 5: гонка (толстые горизонтальные дорожки) ----------------------
+function renderTheme5(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var ctx = prepPeople(panel, 't5', people);
+    if (!ctx) return;
+
+    var html = ctx.list.map(function(p, i) {
+        var rank = i + 1;
+        var w = Math.max(Math.min(p._pct, 100), 8); // минимум 8%, чтобы влезли имя+аватар
+        var leaderCls = rank === 1 ? ' t5-leader' : '';
+        var medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+        return '<div class="t5-lane' + leaderCls + '">' +
+            '<div class="t5-rk">' + rank + '</div>' +
+            '<div class="t5-track">' +
+                '<div class="t5-fill t5-bg-' + p._st + '" style="width:' + w + '%">' +
+                    '<span class="t5-av">' + escapeHTML(initials(p.name)) + '</span>' +
+                    '<span class="t5-nm">' + escapeHTML(p.name) + (medal ? ' ' + medal : '') + '</span>' +
+                '</div>' +
+                '<div class="t5-val t5-c-' + p._st + '">' + p._pct + '%</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+
+    ctx.body.innerHTML = '<div class="t5-lanes">' + html + '</div>';
+}
+
+// --- THEME 6: минимал, гигантские цифры -----------------------------------
+function renderTheme6(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var ctx = prepPeople(panel, 't6', people);
+    if (!ctx) return;
+
+    var html = ctx.list.map(function(p, i) {
+        var rank = i + 1;
+        var leaderCls = rank === 1 ? ' t6-leader' : '';
+        return '<div class="t6-row' + leaderCls + '">' +
+            '<div class="t6-rk">' + (rank < 10 ? '0' + rank : rank) + '</div>' +
+            '<div class="t6-nm">' + escapeHTML(p.name) +
+                '<span class="t6-sub">' + formatNumber(p.factQty) + ' / ' + formatNumber(p.planQty) + '</span>' +
+            '</div>' +
+            '<div class="t6-pct t6-c-' + p._st + '">' + p._pct + '<small>%</small></div>' +
+        '</div>';
+    }).join('');
+
+    ctx.body.innerHTML = '<div class="t6-list">' + html + '</div>';
+}
+
+// --- THEME 7: бенто (лидер-герой + плитки) --------------------------------
+function renderTheme7(panelId, people) {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var ctx = prepPeople(panel, 't7', people);
+    if (!ctx) return;
+
+    var lead = ctx.list[0];
+    var rest = ctx.list.slice(1);
+
+    var hero = '<div class="t7-hero t7-edge-' + lead._st + '">' +
+        '<div class="t7-hero-top">' +
+            '<span class="t7-hero-medal">🥇</span>' +
+            '<span class="t7-hero-rank">ЛИДЕР</span>' +
+        '</div>' +
+        '<div class="t7-hero-av">' + escapeHTML(initials(lead.name)) + '</div>' +
+        '<div class="t7-hero-name">' + escapeHTML(lead.name) + '</div>' +
+        '<div class="t7-hero-pct t7-c-' + lead._st + '">' + lead._pct + '<small>%</small></div>' +
+        '<div class="t7-hero-bar"><div class="t7-hero-fill t7-bg-' + lead._st + '" style="width:' + Math.min(lead._pct, 100) + '%"></div></div>' +
+        '<div class="t7-hero-meta">Кол-во ' + formatNumber(lead.factQty) + ' / ' + formatNumber(lead.planQty) +
+            ' · Заявки ' + formatNumber(lead.factOrders) + '/' + formatNumber(lead.planOrders) + '</div>' +
+    '</div>';
+
+    var tiles = rest.map(function(p, i) {
+        var rank = i + 2;
+        var w = Math.min(p._pct, 100);
+        return '<div class="t7-tile t7-edge-' + p._st + '">' +
+            '<div class="t7-tile-top">' +
+                '<span class="t7-tile-rank">#' + rank + '</span>' +
+                '<span class="t7-tile-av">' + escapeHTML(initials(p.name)) + '</span>' +
+            '</div>' +
+            '<div class="t7-tile-name">' + escapeHTML(p.name) + '</div>' +
+            '<div class="t7-tile-pct t7-c-' + p._st + '">' + p._pct + '%</div>' +
+            '<div class="t7-tile-bar"><div class="t7-tile-fill t7-bg-' + p._st + '" style="width:' + w + '%"></div></div>' +
+        '</div>';
+    }).join('');
+
+    ctx.body.innerHTML = '<div class="t7-bento">' + hero + '<div class="t7-tiles">' + tiles + '</div></div>';
 }
 
 function escapeHTML(str) {
