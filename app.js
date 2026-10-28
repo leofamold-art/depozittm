@@ -393,14 +393,15 @@ function fetchData() {
 
             renderSettingsWarning(missingSettings);
             updateDate();
+            document.body.classList.add('rendered');
         })
         .catch(function(err) {
             console.error('Fetch error:', err);
             var errRow = '<tr class="error-row"><td colspan="8">Ошибка: ' + escapeHTML(err.message) + '</td></tr>';
             var collBody = document.querySelector('#table-collectors tbody');
             var drivBody = document.querySelector('#table-drivers tbody');
-            if (collBody) collBody.innerHTML = errRow;
-            if (drivBody) drivBody.innerHTML = errRow;
+            if (collBody) setHTML(collBody, errRow);
+            if (drivBody) setHTML(drivBody, errRow);
         })
         .finally(function() {
             if (headerEl) {
@@ -451,7 +452,7 @@ function renderTable(tableId, people) {
     }
 
     if (people.length === 0) {
-        tbody.innerHTML = '<tr class="loading-row"><td colspan="' + (showProd ? 8 : 7) + '">Нет данных</td></tr>';
+        setHTML(tbody, '<tr class="loading-row"><td colspan="' + (showProd ? 8 : 7) + '">Нет данных</td></tr>');
         return;
     }
 
@@ -538,7 +539,7 @@ function renderTable(tableId, people) {
         return row;
     });
 
-    tbody.innerHTML = rowsHtml.join('');
+    setHTML(tbody, rowsHtml.join(''));
 }
 
 // --- THEME 2: тёмный пьедестал --------------------------------------------
@@ -550,7 +551,7 @@ function renderTheme2(panelId, people) {
     if (!body) return;
 
     if (!people.length) {
-        body.innerHTML = '<div class="t2-empty">Нет данных</div>';
+        setHTML(body, '<div class="t2-empty">Нет данных</div>');
         if (count) count.textContent = '';
         return;
     }
@@ -597,8 +598,8 @@ function renderTheme2(panelId, people) {
     if (top[2]) podHtml += podium(top[2], 3);
     var restHtml = rest.map(function(p, i){ return listRow(p, i + 4); }).join('');
 
-    body.innerHTML = '<div class="t2-podium">' + podHtml + '</div>' +
-                     '<div class="t2-list">' + restHtml + '</div>';
+    setHTML(body, '<div class="t2-podium">' + podHtml + '</div>' +
+                     '<div class="t2-list">' + restHtml + '</div>');
 }
 
 // --- THEME 3: светлый лидер-баннер ----------------------------------------
@@ -610,7 +611,7 @@ function renderTheme3(panelId, people) {
     if (!body) return;
 
     if (!people.length) {
-        body.innerHTML = '<div class="t3-empty">Нет данных</div>';
+        setHTML(body, '<div class="t3-empty">Нет данных</div>');
         if (count) count.textContent = '';
         return;
     }
@@ -646,7 +647,7 @@ function renderTheme3(panelId, people) {
         '</div>';
     }).join('');
 
-    body.innerHTML = hero + '<div class="t3-list">' + restHtml + '</div>';
+    setHTML(body, hero + '<div class="t3-list">' + restHtml + '</div>');
 }
 
 // --- THEME 4: неоновые кольца прогресса -----------------------------------
@@ -658,7 +659,7 @@ function renderTheme4(panelId, people) {
     if (!body) return;
 
     if (!people.length) {
-        body.innerHTML = '<div class="t4-empty">Нет данных</div>';
+        setHTML(body, '<div class="t4-empty">Нет данных</div>');
         if (count) count.textContent = '';
         return;
     }
@@ -697,9 +698,9 @@ function renderTheme4(panelId, people) {
         '</div>';
     }
 
-    body.innerHTML = '<div class="t4-grid">' +
+    setHTML(body, '<div class="t4-grid">' +
         people.map(function(p, i){ return tile(p, i + 1); }).join('') +
-    '</div>';
+    '</div>');
 }
 
 // Подготовка: проценты, статус, сортировка, заполнение счётчика.
@@ -709,7 +710,7 @@ function prepPeople(panel, prefix, people) {
     var count = panel.querySelector('.' + prefix + '-count');
     if (!body) return null;
     if (!people.length) {
-        body.innerHTML = '<div class="' + prefix + '-empty">Нет данных</div>';
+        setHTML(body, '<div class="' + prefix + '-empty">Нет данных</div>');
         if (count) count.textContent = '';
         return null;
     }
@@ -744,7 +745,7 @@ function renderTheme5(panelId, people) {
         '</div>';
     }).join('');
 
-    ctx.body.innerHTML = '<div class="t5-lanes">' + html + '</div>';
+    setHTML(ctx.body, '<div class="t5-lanes">' + html + '</div>');
 }
 
 // --- THEME 6: минимал, гигантские цифры -----------------------------------
@@ -766,7 +767,7 @@ function renderTheme6(panelId, people) {
         '</div>';
     }).join('');
 
-    ctx.body.innerHTML = '<div class="t6-list">' + html + '</div>';
+    setHTML(ctx.body, '<div class="t6-list">' + html + '</div>');
 }
 
 // --- THEME 7: бенто (лидер-герой + плитки) --------------------------------
@@ -806,13 +807,20 @@ function renderTheme7(panelId, people) {
         '</div>';
     }).join('');
 
-    ctx.body.innerHTML = '<div class="t7-bento">' + hero + '<div class="t7-tiles">' + tiles + '</div></div>';
+    setHTML(ctx.body, '<div class="t7-bento">' + hero + '<div class="t7-tiles">' + tiles + '</div></div>');
 }
 
 function escapeHTML(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+// Перерисовываем блок только если его содержимое изменилось: иначе раз в минуту всё мигает (пересоздание DOM + анимации).
+function setHTML(el, html) {
+    if (el.__html === html) return;
+    el.__html = html;
+    el.innerHTML = html;
 }
 
 function formatNumber(num) {

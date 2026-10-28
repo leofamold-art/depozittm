@@ -1089,3 +1089,10 @@ body.theme-7 .t7-c-good { color: var(--t7-good); }
 body.theme-7 .t7-c-warn { color: var(--t7-warn); }
 body.theme-7 .t7-c-bad  { color: var(--t7-bad); }
 body.theme-7 .t7-empty { padding: 40px; text-align: center; color: var(--t7-muted); font-size: 1.2rem; }
+
+
+/* После первой отрисовки анимации появления отключаем: на ТВ экран обновляется раз в минуту, и они выглядят как мигание. */
+body.rendered *, body.rendered *::before, body.rendered *::after { animation: none !important; }
+
+/* Левый угол ТВ частично закрыт наклейкой — сдвигаем заголовок вправо, чтобы были видны все буквы. */
+body header { padding-left: max(40px, 11vw); }
